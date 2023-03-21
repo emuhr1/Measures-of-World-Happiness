@@ -1,0 +1,707 @@
+---
+title: "ISYE 312 - Project Analysis"
+author: "Group 7"
+date: "4/29/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+library(corrplot)
+library(tidyverse)
+library(dplyr)
+library(car)
+library(scales)
+library(MPV)
+library(MASS)
+library(nlme)
+library(olsrr)
+```
+
+```{r}
+original_world_happiness_2021 <- read.csv("/Users/karissatschida/Documents/2021-2022/Spring 2022/ISyE312/Project/final project/original_world_happiness_2021.csv")
+```
+
+```{r}
+world_happiness_2021 <- original_world_happiness_2021 %>% 
+  summarize(country_name, regional_indicator, ladder_score, logged_gdp_per_capita, social_support, healthy_life_expectancy, freedom_to_make_life_choices, generosity, perceptions_of_corruption)
+```
+
+# Data
+
+Link to Kaggle Dataset: https://www.kaggle.com/datasets/ajaypalsinghlo/world-happiness-report-2021
+
+Link to World Happiness Report 2021 Webpage: https://worldhappiness.report/ed/2021/
+
+Link to World Happiness Report 2021 PDF: https://happiness-report.s3.amazonaws.com/2021/WHR+21.pdf
+
+## Independent Variables vs. Ladder Score
+
+1. Logged GPD per Capita vs. Ladder Score
+
+```{r}
+plot(world_happiness_2021$ladder_score, world_happiness_2021$logged_gdp_per_capita,
+     xlab = "Ladder Score",
+     ylab = "Logged GDP per Capita",
+     main = "GDP vs. Ladder Score")
+```
+
+2. Social Support vs. Ladder Score
+
+```{r}
+plot(world_happiness_2021$ladder_score, world_happiness_2021$social_support,
+     xlab = "Ladder Score",
+     ylab = "Social Support",
+     main = "Social Support vs. Ladder Score")
+```
+
+3. Healthy Life Expectancy vs. Ladder Score
+
+```{r}
+plot(world_happiness_2021$ladder_score, world_happiness_2021$healthy_life_expectancy,
+     xlab = "Ladder Score",
+     ylab = "Healthy Life Expectancy",
+     main = "Healthy Life Expectancy vs. Ladder Score")
+```
+
+4. Freedom to Make Life Choices vs. Ladder Score
+
+```{r}
+plot(world_happiness_2021$ladder_score, world_happiness_2021$freedom_to_make_life_choices,
+     xlab = "Ladder Score",
+     ylab = "Freedom to Make Life Choices",
+     main = "Freedom to Make Life Choices vs. Ladder Score")
+```
+
+5. Generosity vs. Ladder Score
+
+```{r}
+plot(world_happiness_2021$ladder_score, world_happiness_2021$generosity,
+     xlab = "Ladder Score",
+     ylab = "Generosity",
+     main = "Generosity vs. Ladder Score")
+```
+
+6. Perceptions of Corruption vs. Ladder Score
+
+```{r}
+plot(world_happiness_2021$ladder_score, world_happiness_2021$perceptions_of_corruption,
+     xlab = "Ladder Score",
+     ylab = "Perceptions of Corruption",
+     main = "Perceptions of Corruption vs. Ladder Score")
+```
+
+## Correlation Plot
+
+```{r}
+num_world_happiness_2021 <- world_happiness_2021 %>% 
+  summarize(ladder_score, logged_gdp_per_capita, social_support, healthy_life_expectancy, freedom_to_make_life_choices, generosity, perceptions_of_corruption)
+```
+
+```{r}
+cor(num_world_happiness_2021, method = "pearson", use = "complete.obs")
+corrplot(cor(num_world_happiness_2021))
+```
+
+## Outliers
+
+### Data WITH Outliers
+
+```{r}
+happiness_model <- lm(ladder_score ~ regional_indicator + logged_gdp_per_capita + social_support + healthy_life_expectancy + freedom_to_make_life_choices + generosity + perceptions_of_corruption, data = world_happiness_2021)
+```
+
+```{r}
+anova(happiness_model)
+```
+
+```{r}
+yhat <- happiness_model$fitted.values
+res <- happiness_model$residuals
+t <- rstudent(happiness_model)
+stdres <- rstandard(happiness_model)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(yhat, res, ylab="Residuals", xlab="Fitted Value", main="Residual vs Fitted")
+abline(0, 0)
+
+plot(yhat, t, ylab="Studentized", xlab="Fitted Value", main="Studentized Residual vs Fitted")
+abline(0, 0)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+qqnorm(res, ylab="Residuals", xlab="Normal Scores",main="Residual Q-Q Plot") 
+qqline(res)
+
+qqnorm(t, ylab="Studentized Residuals", xlab="Normal Scores",main="Studentized Residual Q-Q Plot") 
+qqline(t)
+```
+
+### Extract Outliers
+
+Create a linear model.
+
+```{r}
+mod <- lm(ladder_score ~ regional_indicator + logged_gdp_per_capita + social_support + healthy_life_expectancy + freedom_to_make_life_choices + generosity + perceptions_of_corruption, data = world_happiness_2021)
+```
+
+#### Cook's Distance
+
+```{r}
+cooksd <- cooks.distance(mod)
+```
+
+Plot Cook's Distance.
+
+```{r}
+plot(cooksd, 
+     xlab = "Index",
+     ylab = "Cook's Distance",
+     main = "1. Cook's Distance for Influential Observations")
+```
+
+Plot Cook's Distance using the traditional cut-off point of 4/sample size (or 4/n).
+
+```{r}
+n <- nrow(world_happiness_2021)
+plot(cooksd, 
+     xlab = "Index",
+     ylab = "Cook's Distance",
+     main = "2. Cooks Distance for Influential Observations",
+     sub = "cut-off point of 4/n represented by blue dashed line")
+abline(h = 4/n, lty = 2, col = "blue")
+```
+
+Create a bar plot of Cook's Distance to display the observations that are influential points of the fitted model.
+
+```{r}
+ols_plot_cooksd_bar(mod)
+```
+
+Create a chart of Cook's Distance to display the observations that are influential points of the fitted model.
+
+```{r}
+ols_plot_cooksd_chart(mod)
+```
+
+As displayed above by the "2. Cook's Distance for Influential Observations" plot, the "Cook's D Bar Plot", and the "Cook's D Chart" above, there are 13 influential points in our data.
+ 
+Remove the 13 outliers in the data set.
+
+```{r}
+influential_obs <- as.numeric(names(cooksd)[(cooksd > 4/n)])
+
+outliers_removed <- world_happiness_2021[-influential_obs, ]
+```
+
+## Data WITHOUT Outliers
+
+```{r}
+nooutliers_happiness_model <- lm(ladder_score ~ regional_indicator + logged_gdp_per_capita + social_support + healthy_life_expectancy + freedom_to_make_life_choices + generosity + perceptions_of_corruption, data = outliers_removed)
+```
+
+```{r}
+anova(nooutliers_happiness_model)
+```
+
+```{r}
+yhat <- nooutliers_happiness_model$fitted.values
+res <- nooutliers_happiness_model$residuals
+t <- rstudent(nooutliers_happiness_model)
+stdres <- rstandard(nooutliers_happiness_model)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(yhat, res, ylab="Residuals", xlab="Fitted Value", main="Residual vs Fitted")
+abline(0, 0)
+
+plot(yhat, t, ylab="Studentized", xlab="Fitted Value", main="Studentized Residual vs Fitted")
+abline(0, 0)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+qqnorm(res, ylab="Residuals", xlab="Normal Scores",main="Residual Q-Q Plot") 
+qqline(res)
+
+qqnorm(t, ylab="Studentized Residuals", xlab="Normal Scores",main="Studentized Residual Q-Q Plot") 
+qqline(t)
+```
+
+13 outliers were removed from the data, resulting in a bit more linear distribution of the residuals on the Q-Q plots.
+
+# Questions
+
+## Question 1
+#### *If at all, does generosity affect ladder score calculations?*
+
+```{r}
+ggplot(world_happiness_2021, aes(x = regional_indicator, y = ladder_score)) +
+  geom_point(color = "blue", alpha = 0.5, size = 1) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("Region") +
+  ylab("Ladder Score") +
+  ggtitle("Ladder Score vs. Country Region", subtitle = "How does the region of a country affect ladder score?")
+```
+
+```{r}
+ggplot(world_happiness_2021, aes(x = regional_indicator, y = social_support)) +
+  geom_point(color = "blue", alpha = 0.5, size = 1) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("Region") +
+  ylab("Social Support") +
+  ggtitle("Social Support vs. Country Region", subtitle = "How does the region of a country affect social support?")
+```
+
+```{r}
+ggplot(world_happiness_2021, aes(x = regional_indicator, y = freedom_to_make_life_choices)) +
+  geom_point(color = "blue", alpha = 0.5, size = 1) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("Region") +
+  ylab("Freedom to Make Life Choices") +
+  ggtitle("Freedom to Make Life Choices vs. Country Region", subtitle = "How does the region of a country affect the freedom to make life choices?")
+```
+
+Create a linear model where the dependent variable is the ladder score, and the independent variables are social support and regional indicator.
+
+```{r}
+world_model <-lm(world_happiness_2021$ladder_score ~ world_happiness_2021$social_support + world_happiness_2021$regional_indicator, data = world_happiness_2021)
+summary(world_model)
+```
+
+Extract the coefficients and R^2 values from the summary to find which region has the highest social support coefficient.
+
+```{r}
+coeffs = coefficients(world_model)
+coeffs
+```
+
+```{r}
+summary(world_model)$r.squared
+```
+
+Western Europe has the highest social support coefficient.
+
+To further explore this, test a multi-linear regression model again social support, ladder score, and freedom to make life choices in Western Europe to see how those factor change the ladder score.
+
+```{r}
+weurope <- subset(world_happiness_2021, regional_indicator == "Western Europe")
+```
+
+```{r}
+pairs(~weurope$ladder_score+weurope$social_support+weurope$freedom_to_make_life_choices,main="Simple Scatterplot Matrix")
+```
+
+Create a linear regression model and display results.
+
+```{r}
+weurope_model_generosity <-lm(ladder_score~social_support+freedom_to_make_life_choices+generosity, data=weurope)
+
+summary(weurope_model_generosity)
+```
+
+Test if generosity is significant or insignificant via R^2.
+
+First, examine an ANOVA table.
+
+```{r}
+anova(weurope_model_generosity)
+```
+
+Next, calculate R^2 and the adjusted R^2 values using the values from the ANOVA table.
+
+R^2 = 1 - (SS(Res) / SS(T))
+
+adjusted R^2 = 1 - SS(Res)/(n-p) / SS(T)/(n-1)
+
+```{r}
+rsq1 <- 1 - ((2.2873) / (5.92+0.3822+0.0307+2.2873))
+rsq1
+
+adj_rsq1 <- 1 - (2.2873 / 17) / ((5.92+0.3822+0.0307+2.2873) / 20)
+adj_rsq1
+```
+
+Finally, test for the significance of regression coefficient (x3 = generosity) via a hypothesis test.
+
+H0: B3 = 0
+
+H1: B3 <=> 0 (testing whether B3 is insignificant in regression equation)
+
+to = B3 / se(B3) = 0.3631 / sqrt(sigmsq*vif(generosity))
+
+```{r}
+sigmasq <- (sigma(weurope_model_generosity))^2
+sigmasq
+```
+
+```{r}
+vif <- vif(weurope_model_generosity)
+vif
+```
+
+```{r}
+t0 <- 0.3631 / (sqrt(0.1345448 * 1.570089))
+t0
+```
+
+t_(alpha/2, n-3) = t_(0.005, 17) = 2.898
+
+t0 = 0.7900065
+
+Since t0 < t_(alpha/2, n-3), we fail to reject H0. Therefore, there is not any strong evidence that there is a correlation between generosity and ladder score.
+
+
+## Question 2
+
+#### *How do social support and freedom to make life choices affect the ladder score in Western European countries?*
+
+```{r}
+num_weurope <- weurope %>% 
+  summarize(ladder_score, logged_gdp_per_capita, social_support, healthy_life_expectancy, freedom_to_make_life_choices, generosity, perceptions_of_corruption)
+```
+
+Correlation plot of each of the individual variables for Western European regions.
+
+```{r}
+cor(num_weurope, method = "pearson", use = "complete.obs")
+corrplot(cor(num_weurope))
+```
+```{r}
+pairs(~ weurope$ladder_score + weurope$social_support + weurope$freedom_to_make_life_choices, main="Simple Scatterplot Matrix")
+```
+
+```{r}
+weurope_model <-lm(ladder_score~social_support + freedom_to_make_life_choices, data = weurope)
+summary(weurope_model)
+```
+
+First, examine an ANOVA table.
+
+```{r}
+anova(weurope_model)
+```
+
+R^2 = 1 - (SS(Res) / SS(T))
+
+adjusted R^2 = 1 - SS(Res)/(n-p) / SS(T)/(n-1)
+
+```{r}
+rsq2 <- 1 - ((2.3180) / (5.92+0.3822+2.3180))
+rsq2
+
+adj_rsq2 <- 1 - (2.3180 / 18) / ((5.92+0.3822+2.3180) / 20)
+adj_rsq2
+```
+
+The estimated regression function is y = 8.224X1 + 2.033X2 - 2.351. B1 = 8.224 which means for every one unit increase in a persons rating of the social_support, their ladder score in Western Europe increases by 8.224.
+
+Ho = B1 = B2 
+
+Ha = Bj <=> 0 for at least one j in J={1,2}
+
+Testing the regression relation, using alpha = 0.01, our test shows that the p-value is much less than 0.01, we reject the null hypothesis that B1 = B2, so there is a significant relationship between the variables in the linear regression model. Our test implies that there is a linear relationship between B1 and B2. Which we would expect since these are factors in calculating the ladder score.
+
+## Question 3
+#### *How does the generosity of a country affect their perceptions of corruption?*
+
+To see how the generosity of a country affect their perceptions of corruption, we will perform a simple linear regression analysis where the independent variable is generosity (X) and the perception of corruption is the dependent variable (Y).
+
+```{r}
+genper_model <-lm(perceptions_of_corruption ~ generosity, data = world_happiness_2021)
+summary(genper_model)
+```
+
+y = -0.19505x + 0.72450
+
+First, we will conduct a t test to determine whether or not there is a linear association between the two variables here as the alpha risk value of 0.10.
+
+```{r}
+alpha <- 0.1
+y <- length(world_happiness_2021$perceptions_of_corruption)
+x <- length(unique(world_happiness_2021$generosity))
+
+F.test.world_happiness_2021 <- qf(1 - alpha, x - 1, y - x)
+F.test.world_happiness_2021
+```
+
+```{r}
+e_df <- world_happiness_2021 %>% 
+  mutate(y_i = perceptions_of_corruption) %>% 
+  mutate(x = generosity) %>% 
+  mutate(y_hat = -0.19505*x + 0.72450) %>% 
+  mutate(e_i = y_i - y_hat) %>% 
+  summarize(x, y_i, y_hat, e_i)
+```
+
+```{r}
+e_i_sqrd <- e_df$e_i^2
+
+sum_residuals <- sum(e_i_sqrd)
+sum_residuals
+```
+
+```{r}
+S_xx = (sum((world_happiness_2021$generosity)^2)) - (((sum(world_happiness_2021$generosity))^2) / (149-2))
+
+se_B1 = sqrt((sum_residuals / (149-2)) / (S_xx))
+se_B1
+```
+
+Testing Significance of Regression
+
+Alternatives:
+
+Ho: β1 = 0
+
+Ha: β1 <=> 0
+
+```{r}
+t_0 = (-0.19505 + 0) / (0.09679816)
+t_0
+```
+
+t_(alpha/2, n-2) = t_(0.005, 147) = 1.655285
+
+Since |-2.015018| > 1.655285, we reject the null hypothesis, and can we therefore say that there is a linear relationship between generosity and perceptions of cor
+
+As shown in the summary of the genper_model model above, the β0 value 0.72450, which means that when generosity (x) is 0, the perception of corruption (y) is expected to be 0.72450. We also see that the slope, β1, is -0.19505. This means that the perception of corruption (y) is expected to decrease by -0.19505 for each 1 unit of increase in generosity (x).
+
+## Question 4
+#### *For Western Europe, Latin America & the Caribbean, and Sub-Saharan Africa, which factor has the highest impact on the ladder score of the region?*
+
+3 different dfs -> instead of generosity change to factors we want look at, look at beta values to understand correlation
+
+```{r}
+weurope <- subset(world_happiness_2021, regional_indicator == "Western Europe")
+```
+
+```{r}
+weurope_all_model <-lm(ladder_score ~ logged_gdp_per_capita + social_support + healthy_life_expectancy + freedom_to_make_life_choices + generosity + perceptions_of_corruption, data = weurope)
+
+summary(weurope_all_model)
+```
+
+*Western Europe*
+
+- Logged GDP per Capita INCREASES by 1; Ladder Score INCREASES by 0.37140 
+
+- **Social Support INCREASES by 1; Ladder Score INCREASES by 6.57583**
+
+- Healthy Life Expectancy INCREASES by 1; Ladder Score DECREASES by 0.03521
+
+- Freedom to Make Life Choices INCREASES by 1; Ladder Score INCREASES by 0.07100
+
+- Generosity INCREASES by 1; Ladder Score INCREASES by 0.17723
+
+- Perceptions of Corruption INCREASES by 1; Ladder Score DECREASES by 1.00238
+
+
+In Western Europe, the Social Score is what has the largest impact on the ladder score.
+
+
+```{r}
+latamerica <- subset(world_happiness_2021, regional_indicator == "Latin America and Caribbean")
+```
+
+```{r}
+latamerica_all_model <-lm(ladder_score ~ logged_gdp_per_capita + social_support + healthy_life_expectancy + freedom_to_make_life_choices + generosity + perceptions_of_corruption, data = latamerica)
+
+summary(latamerica_all_model)
+```
+
+*Latin America & Caribbean*
+
+- Logged GDP per Capita INCREASES by 1; Ladder Score INCREASES by 0.02715 
+
+- Social Support INCREASES by 1; Ladder Score INCREASES by 0.48564
+
+- Healthy Life Expectancy INCREASES by 1; Ladder Score INCREASES by 0.11484
+
+- **Freedom to Make Life Choices INCREASES by 1; Ladder Score INCREASES by 4.13883**
+
+- Generosity INCREASES by 1; Ladder Score INCREASES by 0.38819
+
+- Perceptions of Corruption INCREASES by 1; Ladder Score DECREASES by 0.47465
+
+In Latin America & Caribbean, the Freedom to Make Life Choices is what has the largest impact on the ladder score.
+
+```{r}
+ssafrica <- subset(world_happiness_2021, regional_indicator == "Sub-Saharan Africa")
+```
+
+```{r}
+ssafrica_all_model <-lm(ladder_score ~ logged_gdp_per_capita + social_support + healthy_life_expectancy + freedom_to_make_life_choices + generosity + perceptions_of_corruption, data = ssafrica)
+
+summary(ssafrica_all_model)
+```
+
+*Sub-Saharan Africa*
+
+- Logged GDP per Capita INCREASES by 1; Ladder Score INCREASES by 0.343159 
+
+- Social Support INCREASES by 1; Ladder Score DECREASES by 1.087070
+
+- Healthy Life Expectancy INCREASES by 1; Ladder Score INCREASES by 0.007795
+
+- Freedom to Make Life Choices INCREASES by 1; Ladder Score INCREASES by 0.757828
+
+- Generosity INCREASES by 1; Ladder Score INCREASES by 1.382039
+
+- **Perceptions of Corruption INCREASES by 1; Ladder Score INCREASES by 1.608688**
+
+In Sub-Saharan Africa, the Perceptions of Corruption is what has the largest impact on the ladder score.
+
+## Question 5
+#### *Which region of the world has the highest ladder score?*
+
+```{r}
+ladder_model <-lm(ladder_score ~ social_support + freedom_to_make_life_choices, data = world_happiness_2021)
+
+summary(ladder_model)
+```
+
+```{r}
+anova(ladder_model)
+```
+
+```{r}
+yhat <- ladder_model$fitted.values
+res <- ladder_model$residuals
+t <- rstudent(ladder_model)
+stdres <- rstandard(ladder_model)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(yhat, res, ylab="Residuals", xlab="Fitted Value", main="Residual vs Fitted")
+abline(0, 0)
+
+plot(yhat, t, ylab="Studentized", xlab="Fitted Value", main="Studentized Residual vs Fitted")
+abline(0, 0)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+qqnorm(res, ylab="Residuals", xlab="Normal Scores",main="Residual Q-Q Plot") 
+qqline(res)
+
+qqnorm(t, ylab="Studentized Residuals", xlab="Normal Scores",main="Studentized Residual Q-Q Plot") 
+qqline(t)
+```
+```{r}
+# which country has the highest ladder score?
+country_ladder_score <- world_happiness_2021 %>% 
+  group_by(country_name) %>% 
+  summarize(country_name, ladder_score) %>% 
+  arrange(desc(ladder_score)) %>% 
+  distinct()
+
+head(country_ladder_score, 1)
+```
+
+```{r}
+ggplot(world_happiness_2021, aes(x = fct_inorder(country_name), y = ladder_score)) +
+  geom_point(color = "blue", size = 1) +
+  scale_x_discrete(guide = guide_axis(angle = 90)) + 
+  theme(axis.text.x = element_text(size = 4)) +
+  xlab("Country") +
+  ylab("Ladder Score") +
+  ggtitle("Ladder Score of Each Country") 
+```
+
+Next, we will examine the average ladder score of the ten regions.
+
+```{r}
+avg_region <- world_happiness_2021 %>% 
+  group_by(regional_indicator) %>% 
+  mutate(avg_ladder_score = sum(ladder_score) / n()) %>% 
+  mutate(avg_social_support = sum(social_support) / n()) %>% 
+  mutate(avg_ftmlc = sum(freedom_to_make_life_choices) / n()) %>% 
+  summarize(regional_indicator, avg_ladder_score, avg_social_support, avg_ftmlc) %>% 
+  arrange(desc(avg_ladder_score)) %>% 
+  distinct()
+```
+
+```{r}
+regions_model <-lm(avg_ladder_score ~ avg_social_support + avg_ftmlc, data = avg_region)
+
+summary(regions_model)
+```
+
+```{r}
+anova(regions_model)
+```
+
+```{r}
+yhat <- regions_model$fitted.values
+res <- regions_model$residuals
+t <- rstudent(regions_model)
+stdres <- rstandard(regions_model)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+plot(yhat, res, ylab="Residuals", xlab="Fitted Value", main="Residual vs Fitted")
+abline(0, 0)
+
+plot(yhat, t, ylab="Studentized", xlab="Fitted Value", main="Studentized Residual vs Fitted")
+abline(0, 0)
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+qqnorm(res, ylab="Residuals", xlab="Normal Scores",main="Residual Q-Q Plot") 
+qqline(res)
+
+qqnorm(t, ylab="Studentized Residuals", xlab="Normal Scores",main="Studentized Residual Q-Q Plot") 
+qqline(t)
+```
+
+
+```{r}
+# which region has the highest average ladder score?
+head(avg_region, 1)
+```
+
+```{r}
+ggplot(avg_region, aes(x = fct_inorder(regional_indicator), y = avg_ladder_score)) +
+  geom_point(color = "blue") +
+  scale_x_discrete(guide = guide_axis(angle = 60)) +
+  xlab("Regions") +
+  ylab("Average Ladder Score") +
+  ggtitle("Average Ladder Score of Each Region")
+```
+
+
+# Conclusions
+
+1. Generosity was not a factor into ladder score calculations for our data set.
+
+2. There is not one single factor that impacts ladder score most.
+
+3. The region that has the highest ladder score is North America and ANZ and the country with the highest ladder score is Finland.
+
+
+
+
+
+
+
+
+
